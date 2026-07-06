@@ -1,0 +1,54 @@
+---
+- name: Install Docker on Ubuntu
+  hosts: all
+  tasks:
+    - name: Update Ubuntu
+      become: true
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: safe
+
+    - name: Download Docker's GPG key
+      become: true
+      ansible.builtin.get_url:
+        dest: /etc/apt/keyrings/docker.asc
+        url: https://download.docker.com/linux/ubuntu/gpg
+
+    - name: Create docker.sources
+      become: true
+      ansible.builtin.shell: |
+        tee /etc/apt/sources.list.d/docker.sources <<EOF
+        Types: deb
+        URIs: https://download.docker.com/linux/ubuntu
+        Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+        Components: stable
+        Architectures: $(dpkg --print-architecture)
+        Signed-By: /etc/apt/keyrings/docker.asc
+        EOF
+      args:
+        creates: /etc/apt/sources.list.d/docker.sources
+        executable: /bin/bash
+
+    - name: Install Docker
+      become: true
+      ansible.builtin.apt:
+        name:
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-ce
+          - docker-ce-cli
+          - docker-compose-plugin
+        update_cache: true
+
+    - name: Switch to Docker's local logging driver
+      become: true
+      ansible.builtin.copy:
+        content: |
+          {
+              "log-driver": "local"
+          }
+        dest: /etc/docker/daemon.json
+
+    - name: Reboot Ubuntu
+      become: true
+      ansible.builtin.reboot:
